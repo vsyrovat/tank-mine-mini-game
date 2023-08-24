@@ -1,6 +1,7 @@
 from enum import Enum
 from copy import deepcopy
 from itertools import chain
+import numpy as np
 
 
 class Unit(Enum):
@@ -26,68 +27,56 @@ def encode_space(map: list[list[Enum]]) -> str:
 
 
 class Game:
-    units: list[list[Unit]] = []
-    mines: list[list[Field]] = []
-    age = 0
+    units = None
+    mines = None
+    age = None
     size = [None, None]
 
     def __init__(self, units: UnitMap, mines: FieldMap):
-        self.units = units
-        self.mines = mines
+        self.units = np.array(units)
+        self.mines = np.array(mines)
         self.age = 0
         self.size = [len(units[0]) * 2 + len(mines[0]), max(len(units), len(mines))]  # type: ignore
-        self.field = self.generate_field(self.size[0], self.size[1])
+        self.board = self.generate_board()
         self.mines_offset = len(units[0])
         self.winline_offset = self.mines_offset + len(mines[0])
 
-    def generate_field(self, w, h):
-        return [[None for _ in range(w)] for _ in range(h)]
+    def generate_board(self):
+        return np.full((self.size[1], self.size[0]), None, dtype=object)
 
     def info(self):
         return {"size": self.size}
 
-    def state(self):
-        return [self.units, self.mines]
-
     def is_finished(self):
-        alive_units = list(filter(lambda u: u != Unit.NONE, chain(*self.units)))
-        return self.age >= self.winline_offset or len(alive_units) == 0
+        alive_units = np.any(self.units != Unit.NONE)
+        return self.age >= self.winline_offset or not alive_units
 
     def is_won(self):
-        alive_tanks = list(filter(lambda u: u == Unit.TANK, chain(*self.units)))
-        return self.is_finished() and len(alive_tanks) >= 2
+        alive_tanks = np.sum(self.units == Unit.TANK)
+        return self.is_finished() and alive_tanks >= 2
 
-    def drawmap(self) -> str:
-        field = deepcopy(self.field)
+    def drawmap(self):
+        field = np.copy(self.board)
 
-        for j in range(len(self.mines)):
-            line = self.mines[j]
-            for i in range(len(line)):
-                field[j][i + self.mines_offset] = line[i]
+        for j, line in enumerate(self.mines):
+            field[j, self.mines_offset : self.mines_offset + len(line)] = line
 
-        for j in range(len(self.units)):
-            line = self.units[j]  # type: ignore
-            for i in range(len(line)):
-                field[j][i + self.age] = line[i]
+        field[: len(self.units), self.age : self.age + len(self.units[0])] = self.units
 
-        def encode(x):
-            return x.value if x else "."
+        encode = np.vectorize(lambda x: x.value if x else ".")
+        encoded_field = encode(field)
 
-        return "\n".join(["".join([encode(cell) for cell in line]) for line in field])
+        return "\n".join([f"{''.join(line)}" for line in encoded_field])
 
     def step(self):
         self.age += 1
         for j in range(len(self.units)):
-            unit_line = self.units[j]
-            for i in range(len(unit_line)):
-                unit_cell = self.units[j][i]
-                mi = i - len(unit_line) + self.age
-                if mi >= 0 and mi < len(self.mines[j]):
-                    mine_cell = self.mines[j][mi]
-                    match (unit_cell, mine_cell):
-                        case (Unit.TANK, Field.MINE):
-                            self.units[j][i] = Unit.NONE
-                            self.mines[j][mi] = Field.NONE
+            for i in range(len(self.units[0])):
+                mi = i - len(self.units[0]) + self.age
+                if 0 <= mi < len(self.mines[j]) and self.units[j, i] == Unit.TANK:
+                    if self.mines[j, mi] == Field.MINE:
+                        self.units[j, i] = Unit.NONE
+                        self.mines[j, mi] = Field.NONE
 
     def play(self):
         while not self.is_finished():
