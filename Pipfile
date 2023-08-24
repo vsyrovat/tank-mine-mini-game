@@ -1,0 +1,25 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+black = "*"
+mypy = "*"
+pytest = "*"
+
+[requires]
+python_version = "3.11"
+
+[scripts]
+fmt = """bash -c "
+set -e -x
+pipenv run black ./main.py ./game ./test
+"
+"""
+lint = """bash -c "
+set -e -x
+pipenv run black ./main.py ./game ./test --check --diff
+pipenv run mypy ./main.py ./game ./test
+"
+"""
