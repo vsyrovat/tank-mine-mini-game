@@ -10,7 +10,6 @@ To remove image after:
 
 ## Developer's guide
 
-- `asdf install`
 - `python3 -m venv .venv`
 - `source .venv/bin/activate`
 - `pip install pipenv`
